@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Sites{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Sites</h1>
+    <span class="text-muted">
+        {{ sites|length }} site{{ sites|length|pluralize }}
+    </span>
+</div>
+
+{% if sites %}
+<div class="table-responsive">
+    <table class="table table-hover table-bordered align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Nom</th>
+                <th>Adresse</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                {% comment %}
+                    nb_capteurs n'existe PAS dans le modèle Site — c'est un
+                    champ annoté ajouté à la volée par
+                    annotate(Count('capteurs')) dans la vue. Django l'attache
+                    à chaque objet du queryset.
+                {% endcomment %}
+                <th class="text-center">Nb capteurs</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for site in sites %}
+            <tr>
+                <td class="fw-bold">{{ site.nom }}</td>
+                <td>{{ site.adresse|default:"—" }}</td>
+                {# |floatformat:4 limite à 4 décimales — précision GPS suffisante #}
+                <td class="text-muted small">
+                    {% if site.latitude %}{{ site.latitude|floatformat:4 }}{% else %}—{% endif %}
+                </td>
+                <td class="text-muted small">
+                    {% if site.longitude %}{{ site.longitude|floatformat:4 }}{% else %}—{% endif %}
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-primary rounded-pill">{{ site.nb_capteurs }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+<div class="alert alert-info">
+    Aucun site enregistré pour l'instant. Créez-en un via l'
+    <a href="/admin/core/site/add/">admin Django</a>.
+</div>
+{% endif %}
+
+{% endblock %}

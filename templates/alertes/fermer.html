@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Fermer {{ alerte.capteur.identifiant }}{% endblock %}
+
+{% block content %}
+
+{# Fil d'Ariane #}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:accueil' %}">Accueil</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'alertes:liste_alertes' %}">Alertes</a></li>
+        <li class="breadcrumb-item active">Fermer</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-secondary shadow-sm">
+            <div class="card-header bg-secondary text-white fw-semibold">
+                Fermeture d'alerte — problème résolu
+            </div>
+            <div class="card-body">
+
+                {# Résumé de l'alerte pour confirmer ce qu'on ferme #}
+                <dl class="row mb-4">
+                    <dt class="col-sm-5">Capteur</dt>
+                    <dd class="col-sm-7">
+                        <strong>{{ alerte.capteur.identifiant }}</strong>
+                        — {{ alerte.capteur.nom }}
+                    </dd>
+
+                    <dt class="col-sm-5">Niveau</dt>
+                    <dd class="col-sm-7">
+                        {% if alerte.niveau == 'critique' %}
+                            <span class="badge bg-danger">{{ alerte.get_niveau_display }}</span>
+                        {% elif alerte.niveau == 'warning' %}
+                            <span class="badge bg-warning text-dark">{{ alerte.get_niveau_display }}</span>
+                        {% else %}
+                            <span class="badge bg-info text-dark">{{ alerte.get_niveau_display }}</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-5">Déclenché le</dt>
+                    <dd class="col-sm-7">
+                        {{ alerte.timestamp_declenchement|date:"d/m/Y à H:i" }}
+                    </dd>
+
+                    {# Si l'alerte a été acquittée avant, on affiche l'info #}
+                    {% if alerte.statut == 'acquittee' and alerte.acquittement_at %}
+                    <dt class="col-sm-5">Acquittée le</dt>
+                    <dd class="col-sm-7">{{ alerte.acquittement_at|date:"d/m/Y à H:i" }}</dd>
+                    {% endif %}
+
+                    {% if alerte.commentaire %}
+                    <dt class="col-sm-5">Commentaire</dt>
+                    <dd class="col-sm-7 fst-italic">{{ alerte.commentaire }}</dd>
+                    {% endif %}
+                </dl>
+
+                <p class="text-muted small mb-4">
+                    Fermer l'alerte signifie que le problème est résolu.
+                    L'heure de clôture sera enregistrée automatiquement —
+                    ça permet de calculer combien de temps l'incident a duré.
+                </p>
+
+                {# On utilise POST car on modifie des données en base, pas GET #}
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-secondary fw-semibold">
+                            Confirmer la fermeture
+                        </button>
+                        <a href="{% url 'alertes:liste_alertes' %}"
+                           class="btn btn-outline-secondary">
+                            Annuler
+                        </a>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

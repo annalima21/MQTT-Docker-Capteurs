@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Alertes{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>
+        Alertes
+        {# On affiche le nombre d'alertes ouvertes dans le titre si > 0 #}
+        {% if nb_ouvertes %}
+            <span class="badge bg-danger ms-2">{{ nb_ouvertes }} ouverte{{ nb_ouvertes|pluralize }}</span>
+        {% endif %}
+    </h1>
+    <span class="text-muted">{{ alertes|length }} résultat{{ alertes|length|pluralize }}</span>
+</div>
+
+{# Boutons de filtre par statut — chaque bouton ajoute ?statut= dans l'URL #}
+<div class="mb-3 d-flex gap-2">
+    <a href="{% url 'alertes:liste_alertes' %}"
+       class="btn btn-sm {% if statut_filtre == '' %}btn-dark{% else %}btn-outline-dark{% endif %}">
+        Toutes
+    </a>
+    <a href="{% url 'alertes:liste_alertes' %}?statut=ouverte"
+       class="btn btn-sm {% if statut_filtre == 'ouverte' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+        Ouvertes
+        {% if nb_ouvertes %}<span class="badge bg-white text-danger ms-1">{{ nb_ouvertes }}</span>{% endif %}
+    </a>
+    <a href="{% url 'alertes:liste_alertes' %}?statut=acquittee"
+       class="btn btn-sm {% if statut_filtre == 'acquittee' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+        Acquittées
+    </a>
+    <a href="{% url 'alertes:liste_alertes' %}?statut=fermee"
+       class="btn btn-sm {% if statut_filtre == 'fermee' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+        Fermées
+    </a>
+</div>
+
+{% if alertes %}
+<div class="table-responsive">
+    <table class="table table-hover table-bordered align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Niveau</th>
+                <th>Capteur</th>
+                <th>Type</th>
+                <th>Valeur déclenchante</th>
+                <th>Déclenché le</th>
+                <th>Statut</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for alerte in alertes %}
+            <tr>
+                <td>
+                    {# Badge couleur selon le niveau de gravité #}
+                    {% if alerte.niveau == 'critique' %}
+                        <span class="badge bg-danger">{{ alerte.get_niveau_display }}</span>
+                    {% elif alerte.niveau == 'warning' %}
+                        <span class="badge bg-warning text-dark">{{ alerte.get_niveau_display }}</span>
+                    {% else %}
+                        <span class="badge bg-info text-dark">{{ alerte.get_niveau_display }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {# Lien vers la fiche du capteur — select_related évite une requête SQL ici #}
+                    <a href="{% url 'core:detail_capteur' alerte.capteur.pk %}"
+                       class="text-decoration-none fw-bold">
+                        {{ alerte.capteur.identifiant }}
+                    </a>
+                    <span class="text-muted small d-block">{{ alerte.capteur.nom }}</span>
+                </td>
+                <td>{{ alerte.get_type_alerte_display }}</td>
+                <td>
+                    {% if alerte.valeur_declenchante is not None %}
+                        <code>{{ alerte.valeur_declenchante }}</code>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td class="text-muted small">
+                    {{ alerte.timestamp_declenchement|date:"d/m/Y H:i" }}
+                </td>
+                <td>
+                    {# Badge couleur selon le statut de l'alerte #}
+                    {% if alerte.statut == 'ouverte' %}
+                        <span class="badge bg-danger">Ouverte</span>
+                    {% elif alerte.statut == 'acquittee' %}
+                        <span class="badge bg-warning text-dark">Acquittée</span>
+                        {# On affiche qui a acquitté et quand, si l'info est dispo #}
+                        {% if alerte.acquittement_at %}
+                            <span class="text-muted small d-block">
+                                {{ alerte.acquittement_at|date:"d/m/Y H:i" }}
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-secondary">Fermée</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="d-flex gap-1">
+                        {# Acquitter : seulement pour une alerte ouverte #}
+                        {% if alerte.statut == 'ouverte' %}
+                            <a href="{% url 'alertes:acquitter_alerte' alerte.pk %}"
+                               class="btn btn-sm btn-outline-warning">
+                                Acquitter
+                            </a>
+                        {% endif %}
+
+                        {# Fermer : pour une alerte ouverte ou acquittée (problème résolu) #}
+                        {% if alerte.statut == 'ouverte' or alerte.statut == 'acquittee' %}
+                            <a href="{% url 'alertes:fermer_alerte' alerte.pk %}"
+                               class="btn btn-sm btn-outline-secondary">
+                                Fermer
+                            </a>
+                        {% endif %}
+
+                        {# Alerte déjà fermée : plus aucune action possible #}
+                        {% if alerte.statut == 'fermee' %}
+                            <span class="text-muted small">—</span>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+<div class="alert alert-success">
+    {% if statut_filtre == 'ouverte' %}
+        Aucune alerte ouverte — tout est nominal.
+    {% else %}
+        Aucune alerte enregistrée pour ce filtre.
+    {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Capteurs{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Capteurs</h1>
+    {# |length compte les éléments — |pluralize ajoute un "s" si > 1 #}
+    <span class="text-muted">
+        {{ capteurs|length }} capteur{{ capteurs|length|pluralize }}
+    </span>
+</div>
+
+{% comment %}
+    Si le queryset est vide on affiche un message, sinon le tableau.
+    Évite d'afficher un tableau vide moche.
+{% endcomment %}
+{% if capteurs %}
+<div class="table-responsive">
+    <table class="table table-hover table-bordered align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Identifiant</th>
+                <th>Nom</th>
+                <th>Site</th>
+                <th>Type</th>
+                <th>Unité</th>
+                <th>État</th>
+                <th>Dernière modification</th>
+            </tr>
+        </thead>
+        <tbody>
+            {# Boucle sur le queryset Capteur passé par la vue #}
+            {% for capteur in capteurs %}
+            <tr>
+                <td>
+                    {# {% url 'core:detail_capteur' capteur.pk %} génère /capteurs/<id>/ #}
+                    <a href="{% url 'core:detail_capteur' capteur.pk %}"
+                       class="fw-bold text-decoration-none">
+                        {{ capteur.identifiant }}
+                    </a>
+                </td>
+                <td>{{ capteur.nom }}</td>
+                {% comment %}
+                    capteur.site.nom ne déclenche PAS de requête SQL en plus
+                    grâce au select_related() qu'on a fait dans la vue.
+                {% endcomment %}
+                <td>{{ capteur.site.nom }}</td>
+                <td>{{ capteur.type_capteur.libelle }}</td>
+                <td><code>{{ capteur.type_capteur.unite_si }}</code></td>
+                <td>
+                    {# Badge couleur en fonction du booléen actif #}
+                    {% if capteur.actif %}
+                        <span class="badge bg-success">Actif</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Inactif</span>
+                    {% endif %}
+                </td>
+                {# |date:"d/m/Y H:i" formate la date au format français #}
+                <td class="text-muted small">{{ capteur.updated_at|date:"d/m/Y H:i" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% else %}
+<div class="alert alert-info">
+    Aucun capteur enregistré pour l'instant. Créez-en un via l'
+    <a href="/admin/core/capteur/add/">admin Django</a>.
+</div>
+{% endif %}
+
+{% endblock %}

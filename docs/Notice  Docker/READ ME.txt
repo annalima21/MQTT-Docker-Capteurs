@@ -1,0 +1,35 @@
+1. Installer Docker Desktop
+
+Télécharger et installer Docker Desktop :
+https://www.docker.com/products/docker-desktop/
+
+Puis ouvrir Docker Desktop et vérifier qu’il est bien lancé.
+
+2. Ouvrir PowerShell
+
+Vérifier que Docker fonctionne :
+
+docker --version
+docker compose version
+
+3. Créer le fichier d’environnement
+
+copy .env.example .env
+
+Ensuite, ouvrir le fichier .env et remplir les informations de connexion à la base Clever Cloud.
+
+4. Lancer le projet avec Docker
+
+docker compose up -d --build
+
+5. Appliquer les migrations Django
+
+docker compose exec web python manage.py migrate
+
+6. Ouvrir l’application
+
+http://localhost:8000/
+
+Admin Django :
+
+http://localhost:8000/admin/

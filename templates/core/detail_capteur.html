@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{# Titre dynamique de la page basé sur l'identifiant du capteur #}
+{% block title %}{{ capteur.identifiant }}{% endblock %}
+
+{% block content %}
+
+{# Fil d'Ariane Bootstrap pour aider l'utilisateur à se situer dans la nav #}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{% url 'core:accueil' %}">Accueil</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{% url 'core:liste_capteurs' %}">Capteurs</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">
+            {{ capteur.identifiant }}
+        </li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        {{ capteur.identifiant }}
+        {# Badge actif/inactif à côté du titre #}
+        {% if capteur.actif %}
+            <span class="badge bg-success fs-6 align-middle">Actif</span>
+        {% else %}
+            <span class="badge bg-secondary fs-6 align-middle">Inactif</span>
+        {% endif %}
+    </h1>
+</div>
+
+<div class="row g-4">
+
+    {# ===== COLONNE GAUCHE : infos générales + config JSON ===== #}
+    <div class="col-md-6">
+
+        {# Fiche d'identité du capteur (dl = liste de définitions, propre en CSS) #}
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header fw-semibold">Informations générales</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+
+                    <dt class="col-sm-5">Nom</dt>
+                    <dd class="col-sm-7">{{ capteur.nom }}</dd>
+
+                    <dt class="col-sm-5">Site</dt>
+                    <dd class="col-sm-7">
+                        <a href="{% url 'core:liste_sites' %}">{{ capteur.site.nom }}</a>
+                    </dd>
+
+                    <dt class="col-sm-5">Type</dt>
+                    <dd class="col-sm-7">
+                        {{ capteur.type_capteur.libelle }}
+                        <span class="text-muted">({{ capteur.type_capteur.unite_si }})</span>
+                    </dd>
+
+                    <dt class="col-sm-5">Firmware</dt>
+                    {# |default:"—" affiche un tiret si le champ est null/vide #}
+                    <dd class="col-sm-7">{{ capteur.firmware_version|default:"—" }}</dd>
+
+                    <dt class="col-sm-5">Date d'installation</dt>
+                    <dd class="col-sm-7">
+                        {{ capteur.date_installation|date:"d/m/Y"|default:"—" }}
+                    </dd>
+
+                    <dt class="col-sm-5">Dernière calibration</dt>
+                    <dd class="col-sm-7">
+                        {{ capteur.date_derniere_calibration|date:"d/m/Y H:i"|default:"—" }}
+                    </dd>
+
+                    <dt class="col-sm-5">Créé le</dt>
+                    <dd class="col-sm-7">{{ capteur.created_at|date:"d/m/Y H:i" }}</dd>
+
+                    <dt class="col-sm-5">Modifié le</dt>
+                    <dd class="col-sm-7">{{ capteur.updated_at|date:"d/m/Y H:i" }}</dd>
+
+                </dl>
+            </div>
+        </div>
+
+        {# Configuration JSON dans un bloc <pre> pour la lisibilité #}
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Configuration JSON</div>
+            <div class="card-body p-0">
+                {% if capteur.config_json %}
+                    {% comment %}
+                        config_json_formate est déjà préparé côté vue
+                        (json.dumps avec indent=2).
+                    {% endcomment %}
+                    <pre class="m-0 p-3 bg-light rounded-bottom"
+                         style="font-size: 0.85em; white-space: pre-wrap;">{{ config_json_formate }}</pre>
+                {% else %}
+                    <p class="text-muted m-3">Aucune configuration renseignée.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    {# ===== COLONNE DROITE : seuils + alertes ===== #}
+    <div class="col-md-6">
+
+        {# Tableau des seuils actifs uniquement (les inactifs ne s'affichent pas) #}
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header fw-semibold">Seuils actifs</div>
+            <div class="card-body p-0">
+                {% if seuils_actifs %}
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Valeur</th>
+                            <th>Unité</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for seuil in seuils_actifs %}
+                        <tr>
+                            {% comment %}
+                                get_type_seuil_display = méthode générée auto
+                                par Django pour les champs avec choices.
+                                Retourne le libellé "Haut critique" au lieu
+                                de "haut_critique".
+                            {% endcomment %}
+                            <td>{{ seuil.get_type_seuil_display }}</td>
+                            <td class="fw-bold">{{ seuil.valeur }}</td>
+                            <td class="text-muted">
+                                <code>{{ capteur.type_capteur.unite_si }}</code>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted m-3">Aucun seuil actif configuré sur ce capteur.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Tableau des alertes encore ouvertes (action technicien requise) #}
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                Alertes ouvertes
+                {% if alertes_ouvertes %}
+                    <span class="badge bg-danger">{{ alertes_ouvertes|length }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if alertes_ouvertes %}
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Niveau</th>
+                            <th>Type</th>
+                            <th>Déclenché le</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alerte in alertes_ouvertes %}
+                        <tr>
+                            <td>
+                                {# Couleur du badge en fonction de la gravité #}
+                                {% if alerte.niveau == 'critique' %}
+                                    <span class="badge bg-danger">{{ alerte.get_niveau_display }}</span>
+                                {% elif alerte.niveau == 'warning' %}
+                                    <span class="badge bg-warning text-dark">{{ alerte.get_niveau_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-info text-dark">{{ alerte.get_niveau_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ alerte.get_type_alerte_display }}</td>
+                            <td class="small text-muted">
+                                {{ alerte.timestamp_declenchement|date:"d/m/Y H:i" }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-success m-3">
+                    Aucune alerte ouverte sur ce capteur.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{# ===== TABLEAU DES 20 DERNIÈRES MESURES (pleine largeur) ===== #}
+<div class="card mt-4 shadow-sm">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        20 dernières mesures
+        <span class="text-muted small fw-normal">
+            {{ capteur.type_capteur.unite_si }}
+        </span>
+    </div>
+    <div class="card-body p-0">
+        {% if mesures_recentes %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Horodatage</th>
+                        <th>Valeur</th>
+                        <th>Qualité</th>
+                        <th>Score anomalie</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mesure in mesures_recentes %}
+                    <tr>
+                        <td class="text-muted small">
+                            {{ mesure.timestamp|date:"d/m/Y H:i:s" }}
+                        </td>
+                        <td class="fw-bold">
+                            {{ mesure.valeur }}
+                            <span class="text-muted small">{{ capteur.type_capteur.unite_si }}</span>
+                        </td>
+                        <td>
+                            {# widthratio q 1 100 = q*100 → convertit [0,1] en % #}
+                            {% if mesure.qualite >= 0.9 %}
+                                <span class="badge bg-success">{% widthratio mesure.qualite 1 100 %}%</span>
+                            {% elif mesure.qualite >= 0.7 %}
+                                <span class="badge bg-warning text-dark">{% widthratio mesure.qualite 1 100 %}%</span>
+                            {% else %}
+                                <span class="badge bg-danger">{% widthratio mesure.qualite 1 100 %}%</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">
+                            {# null si pas de modèle ML actif #}
+                            {{ mesure.anomalie_score|default:"—" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted m-3">Aucune mesure enregistrée pour ce capteur.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# Boutons d'action CRUD — Modifier et Supprimer pointent vers les FBV #}
+<div class="mt-4 d-flex gap-2 flex-wrap">
+    <a href="{% url 'core:capteur_update' capteur.pk %}"
+       class="btn btn-outline-secondary">Modifier</a>
+    <a href="{% url 'core:capteur_delete' capteur.pk %}"
+       class="btn btn-outline-danger">Supprimer</a>
+    <a href="{% url 'core:liste_capteurs' %}"
+       class="btn btn-outline-dark">← Retour à la liste</a>
+</div>
+
+{% endblock %}

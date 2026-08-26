@@ -1,0 +1,200 @@
+{# Page d'analyse de la dérive — F4.2 / Maquette 6 du CdC #}
+{% extends "base.html" %}
+
+{% block title %}Analyse de la dérive{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-start mb-1">
+    <h1 class="mb-0">Analyse de la dérive</h1>
+
+    {# Bouton de déclenchement à la demande (CdC F4.1). POST car ça crée des #}
+    {# détections et parfois des alertes : ce n'est pas une simple lecture. #}
+    <form method="post" action="{% url 'analytics:lancer_analyse' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-success">
+            Lancer l'analyse maintenant
+        </button>
+    </form>
+</div>
+<p class="text-muted mb-4">
+    Évolution de l'indicateur de dérive de chaque capteur sur les 30 derniers jours.
+    Plus le score est élevé, plus le capteur s'écarte de son comportement normal.
+</p>
+
+{# ----- Sélecteur de capteur (formulaire GET simple, sans JS) ----- #}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-info text-white fw-bold">
+        Capteur analysé
+    </div>
+    <div class="card-body">
+        {% if capteurs %}
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label for="capteur-select" class="form-label">Capteur</label>
+                <select name="capteur_id" id="capteur-select" class="form-select">
+                    {% for capteur in capteurs %}
+                    <option value="{{ capteur.id }}"
+                        {% if capteur_selectionne and capteur.id == capteur_selectionne.id %}selected{% endif %}>
+                        {{ capteur.identifiant }} — {{ capteur.nom }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Afficher</button>
+            </div>
+        </form>
+        {% else %}
+        <p class="text-muted mb-0">
+            Aucune dérive n'a encore été analysée. Lancez d'abord
+            <code>python manage.py analyse_derive</code>.
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+{% if capteur_selectionne %}
+
+{# ----- Graphique du score de dérive sur 30 jours ----- #}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white fw-bold">
+        Évolution du score — {{ capteur_selectionne.identifiant }}
+    </div>
+    <div class="card-body">
+        {% if points_graphe %}
+        <canvas id="courbe-derive" height="110"></canvas>
+        <p class="text-muted small mt-2 mb-0">
+            Ligne orange = seuil warning ({{ seuil_warning }}) ·
+            ligne rouge = seuil critique ({{ seuil_critique }}).
+            Au-delà du seuil critique, une alerte de dérive est créée.
+        </p>
+        {% else %}
+        <div class="alert alert-warning mb-0">
+            Aucune détection sur les 30 derniers jours pour ce capteur.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ----- Tableau des dernières détections (Maquette 6) ----- #}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white fw-bold">
+        Dernières détections
+    </div>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>Date / heure</th>
+                    <th>Score</th>
+                    <th>Moyenne de référence</th>
+                    <th>Bruit (écart-type)</th>
+                    <th>Fenêtre</th>
+                    <th>Alerte</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in derives %}
+                <tr>
+                    <td>{{ d.timestamp|date:"d/m/Y H:i" }}</td>
+                    <td>
+                        {# Badge coloré selon le niveau, calculé à partir des seuils #}
+                        {% if d.score >= seuil_critique %}
+                        <span class="badge bg-danger">{{ d.score|floatformat:2 }} — critique</span>
+                        {% elif d.score >= seuil_warning %}
+                        <span class="badge bg-warning text-dark">{{ d.score|floatformat:2 }} — warning</span>
+                        {% else %}
+                        <span class="badge bg-success">{{ d.score|floatformat:2 }} — normal</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ d.moyenne_ref|floatformat:2 }}</td>
+                    <td>{{ d.ecart_type_ref|floatformat:2 }}</td>
+                    <td>{{ d.fenetre_heures }} h</td>
+                    <td>
+                        {% if d.alerte %}
+                        <a href="{% url 'alertes:liste_alertes' %}?statut=ouverte"
+                           class="badge bg-danger text-decoration-none">
+                            Alerte #{{ d.alerte.id }}
+                        </a>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        Aucune détection sur la période.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# Données injectées pour Chart.js (json_script échappe proprement le JSON) #}
+{{ points_graphe|json_script:"points-data" }}
+{{ seuil_warning|json_script:"seuil-warning" }}
+{{ seuil_critique|json_script:"seuil-critique" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const points = JSON.parse(document.getElementById("points-data").textContent);
+    const seuilWarning = JSON.parse(document.getElementById("seuil-warning").textContent);
+    const seuilCritique = JSON.parse(document.getElementById("seuil-critique").textContent);
+
+    // On ne dessine que s'il y a des points et un canvas (sinon rien à tracer).
+    const canvas = document.getElementById("courbe-derive");
+
+    if (canvas && points.length > 0) {
+        const labels = points.map(function (p) { return p.t; });
+        const scores = points.map(function (p) { return p.score; });
+
+        // Deux lignes horizontales constantes = les seuils warning et critique.
+        const ligneWarning = labels.map(function () { return seuilWarning; });
+        const ligneCritique = labels.map(function () { return seuilCritique; });
+
+        new Chart(canvas.getContext("2d"), {
+            type: "line",
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: "Score de dérive",
+                        data: scores,
+                        borderColor: "#0d6efd",
+                        tension: 0.25,
+                        pointRadius: 3,
+                    },
+                    {
+                        label: "Seuil warning",
+                        data: ligneWarning,
+                        borderColor: "#fd7e14",
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                    },
+                    {
+                        label: "Seuil critique",
+                        data: ligneCritique,
+                        borderColor: "#dc3545",
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                    },
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { ticks: { maxTicksLimit: 10 } },
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    }
+</script>
+
+{% endif %}
+
+{% endblock %}

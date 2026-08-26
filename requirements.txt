@@ -1,0 +1,29 @@
+# Web framework
+Django==6.0.5
+djangorestframework==3.17.1
+
+# Base de données PostgreSQL
+psycopg[binary]==3.3.4
+sqlparse==0.5.5
+tzdata==2026.2
+
+# MQTT
+paho-mqtt==2.1.0
+
+# Validation des données capteurs
+pydantic>=2.0
+
+# Data science / ML
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.4
+
+# Variables d'environnement
+python-decouple>=3.8
+
+# Serveur WSGI production
+gunicorn>=21.2
+
+#PostgreeSQL
+psycopg2-binary>=2.9
+

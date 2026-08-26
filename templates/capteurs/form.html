@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{% if capteur %}Modifier {{ capteur.identifiant }}{% else %}Ajouter un capteur{% endif %}{% endblock %}
+
+{% block content %}
+{# FBV : 'capteur' est passé au contexte pour update, absent pour create. #}
+<h1>{% if capteur %}Modifier {{ capteur.identifiant }}{% else %}Ajouter un capteur{% endif %}</h1>
+
+<form method="post">
+    {% csrf_token %}
+
+    {% for field in form %}
+        <div class="field">
+            {{ field.label_tag }}
+            {{ field }}
+            {% if field.help_text %}
+                <small>{{ field.help_text }}</small>
+            {% endif %}
+            {% for error in field.errors %}
+                <p class="status-ko">{{ error }}</p>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+    <button class="button" type="submit">Enregistrer</button>
+    <a class="button secondary" href="{% url 'core:liste_capteurs' %}">Annuler</a>
+</form>
+{% endblock %}

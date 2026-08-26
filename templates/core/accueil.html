@@ -1,0 +1,175 @@
+{# Template enfant qui hérite de base.html (navbar, footer, Bootstrap...) #}
+{% extends "base.html" %}
+
+{# Surcharge du titre du <title> défini dans base.html #}
+{% block title %}Accueil{% endblock %}
+
+{% block content %}
+
+<h1 class="mb-1">Plateforme de gestion de capteurs intelligents</h1>
+<p class="text-muted mb-4">
+    Surveillance en temps réel du parc de capteurs IoT industriels.
+    Ingestion MQTT, détection d'anomalies et alertes automatiques.
+</p>
+
+{# Tableau de bord : 3 cartes Bootstrap avec les KPIs principaux #}
+<div class="row g-4 mb-5">
+
+    {# ----- Carte 1 : capteurs actifs ----- #}
+    <div class="col-md-4">
+        <div class="card border-success h-100 shadow-sm">
+            <div class="card-body text-center py-4">
+                <p class="text-muted mb-1 text-uppercase small fw-semibold">Capteurs actifs</p>
+                {# Variable injectée par la vue accueil() dans views.py #}
+                <h2 class="display-4 fw-bold text-success">{{ nb_capteurs_actifs }}</h2>
+                <a href="{% url 'core:liste_capteurs' %}" class="btn btn-sm btn-outline-success mt-2">
+                    Voir la liste →
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {# ----- Carte 2 : sites ----- #}
+    <div class="col-md-4">
+        <div class="card border-primary h-100 shadow-sm">
+            <div class="card-body text-center py-4">
+                <p class="text-muted mb-1 text-uppercase small fw-semibold">Sites</p>
+                <h2 class="display-4 fw-bold text-primary">{{ nb_sites }}</h2>
+                <a href="{% url 'core:liste_sites' %}" class="btn btn-sm btn-outline-primary mt-2">
+                    Voir les sites →
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {# ----- Carte 3 : alertes ouvertes (rouge si > 0, vert sinon) ----- #}
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm
+            {% if nb_alertes_ouvertes > 0 %}border-danger{% else %}border-success{% endif %}">
+            <div class="card-body text-center py-4">
+                <p class="text-muted mb-1 text-uppercase small fw-semibold">Alertes ouvertes</p>
+                <h2 class="display-4 fw-bold
+                    {% if nb_alertes_ouvertes > 0 %}text-danger{% else %}text-success{% endif %}">
+                    {{ nb_alertes_ouvertes }}
+                </h2>
+                <span class="badge mt-2
+                    {% if nb_alertes_ouvertes > 0 %}bg-danger{% else %}bg-success{% endif %}">
+                    {% if nb_alertes_ouvertes > 0 %}Action requise{% else %}Tout est nominal{% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white fw-bold">
+                Système
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle mb-0" id="table-systeme-capteurs">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Description</th>
+                            <th>Valeur</th>
+                            <th>État</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for capteur in capteurs %}
+                        <tr data-capteur-id="{{ capteur.id }}">
+                            <td>
+                                <strong>{{ capteur.nom }}</strong><br>
+                                <span class="text-muted small">{{ capteur.identifiant }}</span>
+                            </td>
+
+                            <td class="js-valeur">
+                                —
+                            </td>
+
+                            <td>
+                                <span class="badge bg-secondary js-etat">
+                                    Chargement
+                                </span>
+                            </td>
+
+                            <td class="text-nowrap">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'core:detail_capteur' capteur.id %}"
+                                    class="btn btn-outline-secondary">
+                                        Voir
+                                    </a>
+
+                                    <a href="{% url 'core:historique_capteur' capteur.id %}"
+                                    class="btn btn-outline-info">
+                                        Hist.
+                                    </a>
+
+                                    <a href="{% url 'core:capteur_update' capteur.id %}"
+                                    class="btn btn-outline-primary">
+                                        Modifier
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">
+                                Aucun capteur actif enregistré.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <!-- Future deuxième table ici -->
+    </div>
+</div>
+
+<script>
+    async function chargerMesuresActuelles() {
+        try {
+            const response = await fetch("{% url 'core:api_mesures_actuelles' %}");
+            const data = await response.json();
+
+            data.capteurs.forEach(function (capteur) {
+                const ligne = document.querySelector(
+                    `tr[data-capteur-id="${capteur.id}"]`
+                );
+
+                if (!ligne) {
+                    return;
+                }
+
+                const celluleValeur = ligne.querySelector(".js-valeur");
+                const badgeEtat = ligne.querySelector(".js-etat");
+
+                celluleValeur.textContent = capteur.valeur_affichee;
+
+                badgeEtat.textContent = capteur.etat;
+                badgeEtat.className = `badge js-etat bg-${capteur.etat_classe}`;
+            });
+
+        } catch (erreur) {
+            console.error("Erreur pendant le chargement des mesures actuelles :", erreur);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        chargerMesuresActuelles();
+
+        setInterval(function () {
+            chargerMesuresActuelles();
+        }, 5000);
+    });
+</script>
+{% endblock %}

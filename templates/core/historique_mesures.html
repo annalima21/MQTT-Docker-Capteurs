@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+
+{% block title %}Historique des mesures{% endblock %}
+
+{% block content %}
+
+<h1 class="mb-1">Historique des mesures</h1>
+<p class="text-muted mb-4">
+    Consultation des mesures enregistrées par capteur avec sélection de période et navigation sur la courbe.
+</p>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-info text-white fw-bold">
+        Filtres
+    </div>
+
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+
+            <div class="col-md-5">
+                <label for="capteur-select" class="form-label">Capteur</label>
+                <select id="capteur-select" class="form-select">
+                    {% for capteur in capteurs %}
+                    <option value="{{ capteur.id }}"
+                        {% if capteur_selectionne and capteur.id == capteur_selectionne.id %}selected{% endif %}>
+                        {{ capteur.identifiant }} — {{ capteur.nom }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label for="periode-select" class="form-label">Période</label>
+                <select id="periode-select" class="form-select">
+                    <option value="1h">Dernière heure</option>
+                    <option value="6h">6 dernières heures</option>
+                    <option value="24h" selected>24 dernières heures</option>
+                    <option value="7j">7 derniers jours</option>
+                    <option value="30j">30 derniers jours</option>
+                    <option value="custom">Période personnalisée</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <button id="btn-charger" class="btn btn-primary w-100">
+                    Charger
+                </button>
+            </div>
+
+            <div class="col-md-2">
+                <a href="{% url 'core:accueil' %}" class="btn btn-outline-secondary w-100">
+                    Retour
+                </a>
+            </div>
+
+        </div>
+
+        <div class="row g-3 mt-2 d-none" id="zone-periode-custom">
+            <div class="col-md-3">
+                <label for="date-debut" class="form-label">Date de début</label>
+                <input type="date" id="date-debut" class="form-control">
+            </div>
+
+            <div class="col-md-3">
+                <label for="heure-debut" class="form-label">Heure de début</label>
+                <input type="time" id="heure-debut" class="form-control">
+            </div>
+
+            <div class="col-md-3">
+                <label for="date-fin" class="form-label">Date de fin</label>
+                <input type="date" id="date-fin" class="form-control">
+            </div>
+
+            <div class="col-md-3">
+                <label for="heure-fin" class="form-label">Heure de fin</label>
+                <input type="time" id="heure-fin" class="form-control">
+            </div>
+        </div>
+
+        <div class="row mt-2 d-none" id="aide-periode-custom">
+            <div class="col-12">
+                <p class="text-muted small mb-0">
+                    Exemple : du 05/05 à 08:00 jusqu'au 06/05 à 18:00.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
+        <span id="titre-courbe">Courbe des mesures</span>
+        <span id="resume-periode" class="small"></span>
+    </div>
+
+    <div class="card-body">
+
+        <div id="message-erreur" class="alert alert-danger d-none"></div>
+
+        <div id="message-vide" class="alert alert-warning d-none">
+            Aucune mesure trouvée pour ce capteur sur la période sélectionnée.
+        </div>
+
+        <canvas id="courbe-mesures" height="110"></canvas>
+
+        <div class="row mt-3">
+            <div class="col-md-3">
+                <div class="border rounded p-3 bg-light h-100">
+                    <div class="text-muted small">Capteur</div>
+                    <div id="info-capteur" class="fw-bold">—</div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="border rounded p-3 bg-light h-100">
+                    <div class="text-muted small">Date / heure</div>
+                    <div id="info-date" class="fw-bold">—</div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="border rounded p-3 bg-light h-100">
+                    <div class="text-muted small">Valeur</div>
+                    <div id="info-valeur" class="fw-bold">—</div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="border rounded p-3 bg-light h-100">
+                    <div class="text-muted small">Qualité</div>
+                    <div id="info-qualite" class="fw-bold">—</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let graphiqueMesures = null;
+    let mesuresCourantes = [];
+    let capteurCourant = null;
+    let pointSelectionne = null;
+
+    const selectCapteur = document.getElementById("capteur-select");
+    const selectPeriode = document.getElementById("periode-select");
+    const boutonCharger = document.getElementById("btn-charger");
+
+    const zonePeriodeCustom = document.getElementById("zone-periode-custom");
+    const aidePeriodeCustom = document.getElementById("aide-periode-custom");
+
+    const inputDateDebut = document.getElementById("date-debut");
+    const inputHeureDebut = document.getElementById("heure-debut");
+    const inputDateFin = document.getElementById("date-fin");
+    const inputHeureFin = document.getElementById("heure-fin");
+
+    const titreCourbe = document.getElementById("titre-courbe");
+    const resumePeriode = document.getElementById("resume-periode");
+
+    const messageErreur = document.getElementById("message-erreur");
+    const messageVide = document.getElementById("message-vide");
+
+    const infoCapteur = document.getElementById("info-capteur");
+    const infoDate = document.getElementById("info-date");
+    const infoValeur = document.getElementById("info-valeur");
+    const infoQualite = document.getElementById("info-qualite");
+
+    function afficherOuMasquerPeriodeCustom() {
+        if (selectPeriode.value === "custom") {
+            zonePeriodeCustom.classList.remove("d-none");
+            aidePeriodeCustom.classList.remove("d-none");
+        } else {
+            zonePeriodeCustom.classList.add("d-none");
+            aidePeriodeCustom.classList.add("d-none");
+        }
+    }
+
+    function initialiserDatesCustom() {
+        const maintenant = new Date();
+        const hier = new Date();
+
+        hier.setDate(maintenant.getDate() - 1);
+
+        inputDateDebut.value = convertirDatePourInputDate(hier);
+        inputHeureDebut.value = convertirDatePourInputHeure(hier);
+
+        inputDateFin.value = convertirDatePourInputDate(maintenant);
+        inputHeureFin.value = convertirDatePourInputHeure(maintenant);
+    }
+
+    function convertirDatePourInputDate(date) {
+        const annee = date.getFullYear();
+        const mois = String(date.getMonth() + 1).padStart(2, "0");
+        const jour = String(date.getDate()).padStart(2, "0");
+
+        return `${annee}-${mois}-${jour}`;
+    }
+
+    function convertirDatePourInputHeure(date) {
+        const heures = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+
+        return `${heures}:${minutes}`;
+    }
+
+    function construireUrlHistorique() {
+        const capteurId = selectCapteur.value;
+        const periode = selectPeriode.value;
+
+        let url = `{% url 'core:api_historique_mesures' %}?capteur_id=${capteurId}&periode=${periode}`;
+
+        if (periode === "custom") {
+            const dateDebutComplete = `${inputDateDebut.value}T${inputHeureDebut.value}`;
+            const dateFinComplete = `${inputDateFin.value}T${inputHeureFin.value}`;
+
+            url += `&date_debut=${encodeURIComponent(dateDebutComplete)}`;
+            url += `&date_fin=${encodeURIComponent(dateFinComplete)}`;
+        }
+
+        return url;
+    }
+
+    async function chargerHistorique() {
+        messageErreur.classList.add("d-none");
+        messageVide.classList.add("d-none");
+
+        try {
+            const response = await fetch(construireUrlHistorique());
+            const data = await response.json();
+
+            if (!response.ok) {
+                afficherErreur(data.erreur || "Erreur pendant le chargement de l'historique.");
+                return;
+            }
+
+            mesuresCourantes = data.mesures;
+            capteurCourant = data.capteur;
+            pointSelectionne = null;
+
+            titreCourbe.textContent = `${data.capteur.identifiant} — ${data.capteur.nom}`;
+            resumePeriode.textContent = `${data.nombre_mesures} mesure(s) | ${data.date_debut} → ${data.date_fin}`;
+
+            infoCapteur.textContent = data.capteur.identifiant;
+
+            dessinerCourbe(data);
+
+        } catch (erreur) {
+            afficherErreur("Erreur technique pendant le chargement de l'historique.");
+            console.error(erreur);
+        }
+    }
+
+    function afficherErreur(message) {
+        messageErreur.textContent = message;
+        messageErreur.classList.remove("d-none");
+    }
+
+    function dessinerCourbe(data) {
+        const labels = data.mesures.map(function (mesure) {
+            return mesure.timestamp_affiche;
+        });
+
+        const valeurs = data.mesures.map(function (mesure) {
+            return mesure.valeur;
+        });
+
+        const contexte = document.getElementById("courbe-mesures").getContext("2d");
+
+        if (graphiqueMesures !== null) {
+            graphiqueMesures.destroy();
+        }
+
+        graphiqueMesures = new Chart(contexte, {
+            type: "line",
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: `${data.capteur.type} (${data.capteur.unite})`,
+                        data: valeurs,
+                        tension: 0.25,
+                        pointRadius: valeurs.map(function () {
+                            return 2;
+                        }),
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: "nearest",
+                    intersect: false
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            title: function (context) {
+                                const index = context[0].dataIndex;
+                                return mesuresCourantes[index].timestamp_affiche;
+                            },
+                            label: function (context) {
+                                const index = context.dataIndex;
+                                return mesuresCourantes[index].valeur_affichee;
+                            }
+                        }
+                    }
+                },
+                onClick: function (event) {
+                    const points = graphiqueMesures.getElementsAtEventForMode(
+                        event,
+                        "nearest",
+                        { intersect: false },
+                        true
+                    );
+
+                    if (points.length > 0) {
+                        selectionnerMesure(points[0].index);
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 8
+                        }
+                    },
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+
+        if (data.mesures.length > 0) {
+            messageVide.classList.add("d-none");
+            selectionnerMesure(data.mesures.length - 1);
+        } else {
+            messageVide.classList.remove("d-none");
+
+            infoCapteur.textContent = data.capteur.identifiant;
+            infoDate.textContent = "—";
+            infoValeur.textContent = "—";
+            infoQualite.textContent = "—";
+        }
+    }
+
+    function selectionnerMesure(index) {
+        if (!mesuresCourantes[index] || graphiqueMesures === null) {
+            return;
+        }
+
+        pointSelectionne = index;
+
+        const mesure = mesuresCourantes[index];
+
+        infoCapteur.textContent = capteurCourant.identifiant;
+        infoDate.textContent = mesure.timestamp_affiche;
+        infoValeur.textContent = mesure.valeur_affichee;
+        infoQualite.textContent = mesure.qualite === null ? "—" : mesure.qualite;
+
+        graphiqueMesures.data.datasets[0].pointRadius = mesuresCourantes.map(function (_, i) {
+            if (i === pointSelectionne) {
+                return 7;
+            }
+
+            return 2;
+        });
+
+        graphiqueMesures.update();
+    }
+
+    selectPeriode.addEventListener("change", function () {
+        afficherOuMasquerPeriodeCustom();
+        chargerHistorique();
+    });
+
+    selectCapteur.addEventListener("change", function () {
+        chargerHistorique();
+    });
+
+    boutonCharger.addEventListener("click", function () {
+        chargerHistorique();
+    });
+
+    inputDateDebut.addEventListener("change", function () {
+        if (selectPeriode.value === "custom") {
+            chargerHistorique();
+        }
+    });
+
+    inputHeureDebut.addEventListener("change", function () {
+        if (selectPeriode.value === "custom") {
+            chargerHistorique();
+        }
+    });
+
+    inputDateFin.addEventListener("change", function () {
+        if (selectPeriode.value === "custom") {
+            chargerHistorique();
+        }
+    });
+
+    inputHeureFin.addEventListener("change", function () {
+        if (selectPeriode.value === "custom") {
+            chargerHistorique();
+        }
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+        initialiserDatesCustom();
+        afficherOuMasquerPeriodeCustom();
+        chargerHistorique();
+    });
+</script>
+
+{% endblock %}

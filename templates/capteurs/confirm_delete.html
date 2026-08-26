@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Supprimer {{ capteur.identifiant }}{% endblock %}
+
+{% block content %}
+
+{# Fil d'Ariane #}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:accueil' %}">Accueil</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'core:liste_capteurs' %}">Capteurs</a></li>
+        <li class="breadcrumb-item active">Supprimer</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-danger shadow-sm">
+            <div class="card-header bg-danger text-white fw-semibold">
+                Confirmation de suppression
+            </div>
+            <div class="card-body">
+                <p class="mb-3">
+                    Voulez-vous vraiment supprimer le capteur
+                    <strong>{{ capteur.identifiant }} — {{ capteur.nom }}</strong> ?
+                </p>
+                <p class="text-danger small">
+                    Cette action est irréversible. Les seuils, mesures, alertes et
+                    dérives associées à ce capteur seront également supprimés.
+                </p>
+                {# GET → affiche cette page.POST → déclenche capteur.delete() dans la vue FBV capteur_delete(). #}
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="submit" class="btn btn-danger">Oui, supprimer</button>
+                        <a href="{% url 'core:detail_capteur' capteur.pk %}"
+                           class="btn btn-outline-secondary">Annuler</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

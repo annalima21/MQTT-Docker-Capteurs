@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Acquitter {{ alerte.capteur.identifiant }}{% endblock %}
+
+{% block content %}
+
+{# Fil d'Ariane #}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:accueil' %}">Accueil</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'alertes:liste_alertes' %}">Alertes</a></li>
+        <li class="breadcrumb-item active">Acquitter</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-warning shadow-sm">
+            <div class="card-header bg-warning text-dark fw-semibold">
+                Acquittement d'alerte
+            </div>
+            <div class="card-body">
+
+                {# Résumé de l'alerte pour que le technicien sache ce qu'il acquitte #}
+                <dl class="row mb-4">
+                    <dt class="col-sm-5">Capteur</dt>
+                    <dd class="col-sm-7">
+                        <strong>{{ alerte.capteur.identifiant }}</strong>
+                        — {{ alerte.capteur.nom }}
+                    </dd>
+
+                    <dt class="col-sm-5">Niveau</dt>
+                    <dd class="col-sm-7">
+                        {% if alerte.niveau == 'critique' %}
+                            <span class="badge bg-danger">{{ alerte.get_niveau_display }}</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">{{ alerte.get_niveau_display }}</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-5">Type</dt>
+                    <dd class="col-sm-7">{{ alerte.get_type_alerte_display }}</dd>
+
+                    <dt class="col-sm-5">Valeur</dt>
+                    <dd class="col-sm-7">
+                        {% if alerte.valeur_declenchante is not None %}
+                            <code>{{ alerte.valeur_declenchante }}</code>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </dd>
+
+                    <dt class="col-sm-5">Déclenché le</dt>
+                    <dd class="col-sm-7">{{ alerte.timestamp_declenchement|date:"d/m/Y à H:i" }}</dd>
+                </dl>
+
+                {# Formulaire d'acquittement avec commentaire optionnel #}
+                {# On utilise POST : ça modifie des données en base, pas GET #}
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="commentaire" class="form-label fw-semibold">
+                            Commentaire <span class="text-muted fw-normal">(facultatif)</span>
+                        </label>
+                        {# Le technicien peut expliquer ce qu'il a fait ou constaté #}
+                        <textarea name="commentaire"
+                                  id="commentaire"
+                                  class="form-control"
+                                  rows="3"
+                                  placeholder="Ex : Vérification effectuée, température revenue à la normale après ouverture d'une fenêtre."></textarea>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-warning fw-semibold">
+                            Confirmer l'acquittement
+                        </button>
+                        <a href="{% url 'alertes:liste_alertes' %}"
+                           class="btn btn-outline-secondary">
+                            Annuler
+                        </a>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
